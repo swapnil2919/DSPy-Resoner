@@ -1,0 +1,530 @@
+### Reasoning Language Model (RLM) Endpoint — Request Payloads
+### Compatible with VS Code REST Client / IntelliJ HTTP Client
+### Base URL: http://localhost:8000
+### Endpoint:  POST /rlm/chat/completions
+###
+### Notes:
+### - The RLM endpoint accepts the SAME ChatCompletionRequest schema
+###   as /v1/chat/completions and /dspy/chat/completions.
+### - It runs DSPy ReAct under the hood, but always forwards
+###   `reasoning_effort` to the underlying LM (via OpenRouter's
+###   unified `reasoning` field).
+### - `reasoning_effort` may be "low" | "medium" | "high".
+###   When omitted, the server defaults to "medium".
+### - Use a reasoning-capable model (o-series, deepseek-r1,
+###   gpt-5-thinking, claude-thinking, etc.). Non-reasoning models
+###   simply ignore the field upstream.
+### - Tools (weather, email) are loaded server-side from the tool
+###   registry — you do NOT need to pass `tools` in the body. The
+###   `tools` / `tool_choice` fields are accepted by the schema but
+###   ignored by the route (scenarios 8a–8d below show the field
+###   structure for reference and to confirm the request still
+###   validates with them present).
+### ============================================================
+
+
+### ──────────────────────────────────────────────────────────────
+### 1a. Default reasoning_effort (omitted → "medium") — Non-Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is 17 multiplied by 23? Show your reasoning briefly."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 1b. Default reasoning_effort (omitted → "medium") — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is 17 multiplied by 23? Show your reasoning briefly."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 2a. effort=low — Non-Streaming
+### Cheapest reasoning budget. Good for short, well-scoped questions.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Briefly: is 31337 a prime number?"
+    }
+  ],
+  "reasoning_effort": "low"
+}
+
+### ──────────────────────────────────────────────────────────────
+### 2b. effort=low — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Briefly: is 31337 a prime number?"
+    }
+  ],
+  "reasoning_effort": "low",
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 3a. effort=medium — Non-Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "deepseek/deepseek-r1",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Plan a 3-step approach for caching reasoning-model responses without leaking PII."
+    }
+  ],
+  "reasoning_effort": "medium"
+}
+
+### ──────────────────────────────────────────────────────────────
+### 3b. effort=medium — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "deepseek/deepseek-r1",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Plan a 3-step approach for caching reasoning-model responses without leaking PII."
+    }
+  ],
+  "reasoning_effort": "medium",
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 4a. effort=high — Non-Streaming
+### Heavy reasoning budget. Good for multi-step word problems.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Three friends split a $173 bill with an 18% tip and one of them paid $80 in cash. How much do the other two each owe? Show your reasoning briefly."
+    }
+  ],
+  "reasoning_effort": "high"
+}
+
+### ──────────────────────────────────────────────────────────────
+### 4b. effort=high — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Three friends split a $173 bill with an 18% tip and one of them paid $80 in cash. How much do the other two each owe? Show your reasoning briefly."
+    }
+  ],
+  "reasoning_effort": "high",
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 5a. Tool Use — Weather + Reasoning (Non-Streaming)
+### Agent should pick the weather tool then reason over the result.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Check the weather in Mumbai. Based on the result, decide if it's a good day for outdoor cricket and explain why."
+    }
+  ],
+  "reasoning_effort": "medium"
+}
+
+### ──────────────────────────────────────────────────────────────
+### 5b. Tool Use — Weather + Reasoning (Streaming)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Check the weather in Mumbai. Based on the result, decide if it's a good day for outdoor cricket and explain why."
+    }
+  ],
+  "reasoning_effort": "medium",
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 6a. Multi-Tool + Reasoning — Non-Streaming
+### Weather + email, with the model reasoning about both steps.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Check the weather in Ahmedabad, then draft a casual email to team@company.com suggesting whether tomorrow is a good day for an outdoor team lunch. Justify your suggestion."
+    }
+  ],
+  "reasoning_effort": "high"
+}
+
+### ──────────────────────────────────────────────────────────────
+### 6b. Multi-Tool + Reasoning — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Check the weather in Ahmedabad, then draft a casual email to team@company.com suggesting whether tomorrow is a good day for an outdoor team lunch. Justify your suggestion."
+    }
+  ],
+  "reasoning_effort": "high",
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 7. Model with explicit openrouter/ prefix — Non-Streaming
+### `openrouter/` prefix is added automatically by normalize_model()
+### but the explicit form should also work.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openrouter/openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Briefly: which is heavier, 1 kg of feathers or 1 kg of steel? Explain."
+    }
+  ],
+  "reasoning_effort": "low"
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8a. Request with `tools` specified — Weather only
+### NOTE: the agent picks tools from the SERVER-SIDE registry; the
+### `tools` / `tool_choice` fields here are accepted-but-ignored.
+### Useful for confirming OpenAI-shaped requests still validate.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Bengaluru? Recommend an outfit based on it."
+    }
+  ],
+  "reasoning_effort": "medium",
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8b. Request with `tools` specified — Email only (Streaming)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Draft a polite email to client@example.com explaining that the deliverable is delayed by two days, and justify the delay tactfully."
+    }
+  ],
+  "reasoning_effort": "high",
+  "stream": true,
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8c. Full Payload — Both tools, all schema fields, Non-Streaming
+### Mirrors how an OpenAI SDK client would send a tool-using request.
+### `temperature`, `max_tokens`, etc. are accepted but ignored.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that uses tools when appropriate."
+    },
+    {
+      "role": "user",
+      "content": "Check the weather in Jaipur, then email a one-line summary to manager@company.com with the subject 'Jaipur weather'."
+    }
+  ],
+  "reasoning_effort": "high",
+  "stream": false,
+  "temperature": 0.7,
+  "max_tokens": 500,
+  "top_p": 0.9,
+  "frequency_penalty": 0.2,
+  "presence_penalty": 0.1,
+  "stop": ["END"],
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8d. Full Payload — Both tools, Streaming
+### Same body shape as 8c, but with stream=true.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that uses tools when appropriate."
+    },
+    {
+      "role": "user",
+      "content": "Check the weather in Jaipur, then email a one-line summary to manager@company.com with the subject 'Jaipur weather'."
+    }
+  ],
+  "reasoning_effort": "high",
+  "stream": true,
+  "temperature": 0.7,
+  "max_tokens": 500,
+  "top_p": 0.9,
+  "frequency_penalty": 0.2,
+  "presence_penalty": 0.1,
+  "stop": ["END"],
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 9. Auth Header Example (only needed if PROXY_API_KEY is set)
+### Uncomment Authorization line on a server with auth enabled.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/rlm/chat/completions
+Content-Type: application/json
+# Authorization: Bearer your-proxy-api-key-here
+
+{
+  "model": "openai/o4-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Ping."
+    }
+  ],
+  "reasoning_effort": "low"
+}

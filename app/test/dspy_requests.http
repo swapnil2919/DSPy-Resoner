@@ -1,0 +1,637 @@
+### DSPy ReAct Endpoint — Request Payloads (all scenarios)
+### Compatible with VS Code REST Client / IntelliJ HTTP Client
+### Base URL: http://localhost:8000
+### Endpoint:  POST /dspy/chat/completions
+###
+### Notes:
+### - The DSPy endpoint accepts the SAME ChatCompletionRequest schema
+###   as /v1/chat/completions, BUT internally only uses `model`,
+###   `messages`, and `stream`.
+### - Tools (weather, email) are loaded server-side from the tool registry
+###   and exposed to the ReAct agent automatically — you do NOT pass
+###   `tools` in the request body for DSPy.
+### - `temperature`, `max_tokens`, `top_p`, `stop`, `frequency_penalty`,
+###   `presence_penalty`, `tool_choice`, `tools` are accepted by the
+###   schema but ignored by the DSPy route. They are included below
+###   only to show they don't break the request.
+### - `reasoning_effort` is IGNORED on this endpoint — for Reasoning
+###   Language Model runs use POST /rlm/chat/completions instead
+###   (see app/test/rlm_requests.http).
+### ============================================================
+
+
+### ──────────────────────────────────────────────────────────────
+### 1a. Minimal Payload — Non-Streaming (stream omitted → false)
+### Uses DEFAULT_MODEL from .env
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the capital of Japan?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 1b. Minimal Payload — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the capital of Japan?"
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 2. Basic Chat — Non-Streaming, model specified
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain what ReAct (Reasoning + Acting) is in 2 sentences."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 3. Basic Chat — Streaming (SSE)
+### DSPy executes fully, then the answer is streamed word-by-word
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "List three benefits of using DSPy."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 4. Tool Use — Weather (agent calls get_weather internally)
+### No `tools` field needed — DSPy loads them from the registry.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the current weather in Mumbai?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 5. Tool Use — Weather (Streaming)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Tell me the weather in Delhi right now."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 6a. Tool Use — Email — Non-Streaming
+### Agent calls generate_email internally (no `tools` field needed)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Draft a formal email to john@example.com about the project deadline being extended by one week."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 6b. Tool Use — Email — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Draft a formal email to john@example.com about the project deadline being extended by one week."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 7a. Multi-Tool Reasoning — Non-Streaming
+### Agent should pick BOTH weather + email tools across iterations.
+### Email address is explicit (jaydip@example.com) — the
+### generate_email tool requires `to`, so vague names like "jaydip"
+### will cause the model to skip the email step.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Check the weather in Ahmedabad, then draft a casual email to team@company.com suggesting whether tomorrow is a good day for an outdoor team lunch."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 7b. Multi-Tool Reasoning — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Check the weather in Ahmedabad, then draft a casual email to team@company.com suggesting whether tomorrow is a good day for an outdoor team lunch."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 7c. Knowledge + Tool — Capital + Email (Non-Streaming)
+### Mirrors a real multi-part prompt: answer one part from model
+### knowledge AND call generate_email for the other part. Use a
+### concrete email address — the tool's `to` field is required.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the capital of Japan? Also, generate a formal email to jaydip@example.com with the subject 'About Tokyo' explaining that Tokyo is the capital of Japan."
+    }
+  ],
+  "stream": false
+}
+
+### ──────────────────────────────────────────────────────────────
+### 7d. Knowledge + Tool — Capital + Email (Streaming)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the capital of Japan? Also, generate a formal email to jaydip@example.com with the subject 'About Tokyo' explaining that Tokyo is the capital of Japan."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8a. Chat with System Prompt — Non-Streaming
+### DSPy reads the LAST user message — system messages are kept in
+### `messages` but only the latest user content drives the agent.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a concise technical assistant. Keep answers under 3 sentences."
+    },
+    {
+      "role": "user",
+      "content": "What is a vector database?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8b. Chat with System Prompt — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a concise technical assistant. Keep answers under 3 sentences."
+    },
+    {
+      "role": "user",
+      "content": "What is a vector database?"
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 9a. Multi-Turn Conversation — Non-Streaming
+### NOTE: DSPy uses ONLY the last user message
+### (see get_last_user_message in dspy_react_service.py).
+### Prior turns are ignored by the agent.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "My name is Jaydip."
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Jaydip!"
+    },
+    {
+      "role": "user",
+      "content": "What is the weather in Surat?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 9b. Multi-Turn Conversation — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "My name is Jaydip."
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Jaydip!"
+    },
+    {
+      "role": "user",
+      "content": "What is the weather in Surat?"
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 10a. Different Model — GPT-4o Mini — Non-Streaming
+### `openrouter/` prefix is added automatically by normalize_model()
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in London?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 10b. Different Model — GPT-4o Mini — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in London?"
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 11a. Model with explicit openrouter/ prefix — Non-Streaming
+### Should work identically to the unprefixed form (idempotent)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openrouter/meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello in one short sentence."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 11b. Model with explicit openrouter/ prefix — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openrouter/meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello in one short sentence."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 12a. Full Payload — Non-Streaming
+### ALL parameters the schema accepts. DSPy ignores temperature,
+### tools, tool_choice, etc., but the request must still validate.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that uses tools when appropriate."
+    },
+    {
+      "role": "user",
+      "content": "What's the weather in Jaipur, and email a summary to manager@company.com?"
+    }
+  ],
+  "stream": false,
+  "temperature": 0.7,
+  "max_tokens": 500,
+  "top_p": 0.9,
+  "frequency_penalty": 0.2,
+  "presence_penalty": 0.1,
+  "stop": ["END"],
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]+
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 12b. Full Payload — Streaming
+### Same as 12a, but with stream=true
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that uses tools when appropriate."
+    },
+    {
+      "role": "user",
+      "content": "What's the weather in Jaipur, and email a summary to manager@company.com?"
+    }
+  ],
+  "stream": true,
+  "temperature": 0.7,
+  "max_tokens": 500,
+  "top_p": 0.9,
+  "frequency_penalty": 0.2,
+  "presence_penalty": 0.1,
+  "stop": ["END"],
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 13. Edge Case — Empty user content (Non-Streaming)
+### Service should return "No question found." per
+### get_last_user_message() fallback.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 14a. Edge Case — Reasoning without tools — Non-Streaming
+### Agent should answer directly without invoking weather/email
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is 17 multiplied by 23?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 14b. Edge Case — Reasoning without tools — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is 17 multiplied by 23?"
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 15. Auth Header Example (only needed if PROXY_API_KEY is set)
+### Uncomment Authorization line on a server with auth enabled.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/dspy/chat/completions
+Content-Type: application/json
+# Authorization: Bearer your-proxy-api-key-here
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Ping."
+    }
+  ]
+}

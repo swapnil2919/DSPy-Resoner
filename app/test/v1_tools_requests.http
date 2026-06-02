@@ -1,0 +1,686 @@
+### /v1/chat/completions — Tool-Calling Test Cases
+### Compatible with VS Code REST Client / IntelliJ HTTP Client
+### Base URL: http://localhost:8000
+### Endpoint:  POST /v1/chat/completions  (mounted by app.include_router(chat_router, prefix="/v1") in app/main.py)
+###
+### What this file covers:
+### - Section 1: Health & tool registry (sanity check)
+### - Section 2: Base LLM (no tools)        — verifies the proxy passes through plain chat
+### - Section 3: Each tool exposed alone    — verifies registration + invocation per tool
+### - Section 4: All tools exposed together — verifies the LLM picks the right tool
+### - Section 5: Parallel + chained tools   — verifies multi-tool / multi-round behavior
+### - Section 6: tool_choice variants       — verifies "auto", "none", and forced tool
+###
+### Notes:
+### - Default model is meta-llama/llama-3.1-8b-instruct. If a tool doesn't fire, swap to
+###   "openai/gpt-4o-mini" or "anthropic/claude-3.5-haiku" — they call tools more reliably.
+### - All four tools (get_weather, generate_email, web_search, run_python) are also
+###   registered server-side. The proxy executes the call locally and returns the FINAL
+###   answer, not the raw tool_calls (unless none of the requested tools are in TOOL_MAP).
+### - Authorization header is shown commented out — uncomment if PROXY_API_KEY is set.
+### ============================================================
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 1: Health & Tool Registry
+### ──────────────────────────────────────────────────────────────
+
+
+### 1.1 Health check
+GET http://localhost:8000/
+
+### 1.2 List available tools
+GET http://localhost:8000/tools
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 2: Base LLM (no tools)
+### Verifies plain chat passthrough — no tool loop, just one round-trip.
+### ──────────────────────────────────────────────────────────────
+
+
+### 2.1 Base LLM — non-streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "What is the capital of France? Answer in one sentence." }
+  ]
+}
+
+### 2.2 Base LLM — streaming (SSE)
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Count from 1 to 5." }
+  ],
+  "stream": true
+}
+
+### 2.3 Base LLM with system prompt
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "system", "content": "You are a concise assistant. Reply in under 20 words." },
+    { "role": "user",   "content": "Explain what a REST API is." }
+  ]
+}
+
+### 2.4 Base LLM — multi-turn conversation
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "system",    "content": "You are a helpful assistant." },
+    { "role": "user",      "content": "My name is Jaydip." },
+    { "role": "assistant", "content": "Nice to meet you, Jaydip!" },
+    { "role": "user",      "content": "What is my name?" }
+  ]
+}
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 3: Single Tool Tests
+### Each request exposes ONE tool. Verifies that tool is invoked
+### and the final answer comes back populated by the tool's output.
+### ──────────────────────────────────────────────────────────────
+
+
+### 3.1 get_weather — non-streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "What is the weather in Mumbai right now?" }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": { "type": "string", "description": "The city name to get weather for" }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.2 get_weather — streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "What is the weather in Delhi?" }
+  ],
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": { "type": "string", "description": "The city name to get weather for" }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.3 generate_email — non-streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Write a formal email to john@example.com about the project deadline being extended by one week." }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to":      { "type": "string", "description": "Email recipient address" },
+            "subject": { "type": "string", "description": "Email subject line" },
+            "tone":    { "type": "string", "description": "Tone of the email (e.g. formal, casual)", "default": "formal" }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.4 generate_email — streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Send a casual email to alice@example.com about lunch plans tomorrow." }
+  ],
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to":      { "type": "string" },
+            "subject": { "type": "string" },
+            "tone":    { "type": "string", "default": "formal" }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.5 web_search — non-streaming
+### Requires duckduckgo-search package; install with `uv add duckduckgo-search` if missing.
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Search the web for the latest news about FastAPI." }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "web_search",
+        "description": "Search the web for real-time information, facts, news, or anything not in the model's training data",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query":       { "type": "string", "description": "The search query" },
+            "max_results": { "type": "integer", "description": "Maximum number of results to return (default 3)", "default": 3 }
+          },
+          "required": ["query"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.6 web_search — streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Find me 2 recent articles about DSPy framework." }
+  ],
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "web_search",
+        "description": "Search the web for real-time information, facts, news, or anything not in the model's training data",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query":       { "type": "string" },
+            "max_results": { "type": "integer", "default": 3 }
+          },
+          "required": ["query"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.7 run_python — non-streaming
+### Verifies the server-side Python sandbox (subprocess + 15s timeout).
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Use Python to compute the sum of squares from 1 to 100. Show the result." }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "run_python",
+        "description": "Execute a Python code snippet on the server and return its output. Use this for file operations (move, copy, delete, create directories), math calculations, data processing, or any task that Python can handle. Always use print() to output results.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string", "description": "Valid Python source code to execute. Use print() to produce output." }
+          },
+          "required": ["code"]
+        }
+      }
+    }
+  ]
+}
+
+### 3.8 run_python — streaming
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Use Python to print the first 10 Fibonacci numbers." }
+  ],
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "run_python",
+        "description": "Execute a Python code snippet on the server and return its output. Use print() to produce output.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string" }
+          },
+          "required": ["code"]
+        }
+      }
+    }
+  ]
+}
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 4: All Tools Exposed — LLM Picks
+### All 4 tools registered. Verifies the model selects the right one
+### per prompt without being told which to use.
+### ──────────────────────────────────────────────────────────────
+
+
+### 4.1 All-tools — weather prompt → expects get_weather
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "What's the weather in Surat?" }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                                                "parameters": { "type": "object", "properties": { "city":  { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",                                  "parameters": { "type": "object", "properties": { "to":    { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } },
+    { "type": "function", "function": { "name": "web_search",     "description": "Search the web for real-time information",                                                                         "parameters": { "type": "object", "properties": { "query": { "type": "string" }, "max_results": { "type": "integer", "default": 3 } }, "required": ["query"] } } },
+    { "type": "function", "function": { "name": "run_python",     "description": "Execute a Python code snippet on the server and return its output. Use print() to produce output.",                "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+### 4.2 All-tools — email prompt → expects generate_email
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Draft a formal email to manager@company.com about taking PTO next Friday." }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                                                "parameters": { "type": "object", "properties": { "city":  { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",                                  "parameters": { "type": "object", "properties": { "to":    { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } },
+    { "type": "function", "function": { "name": "web_search",     "description": "Search the web for real-time information",                                                                         "parameters": { "type": "object", "properties": { "query": { "type": "string" }, "max_results": { "type": "integer", "default": 3 } }, "required": ["query"] } } },
+    { "type": "function", "function": { "name": "run_python",     "description": "Execute a Python code snippet on the server and return its output. Use print() to produce output.",                "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+### 4.3 All-tools — search prompt → expects web_search
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Search the web for the most recent OpenRouter pricing changes." }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                                                "parameters": { "type": "object", "properties": { "city":  { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",                                  "parameters": { "type": "object", "properties": { "to":    { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } },
+    { "type": "function", "function": { "name": "web_search",     "description": "Search the web for real-time information",                                                                         "parameters": { "type": "object", "properties": { "query": { "type": "string" }, "max_results": { "type": "integer", "default": 3 } }, "required": ["query"] } } },
+    { "type": "function", "function": { "name": "run_python",     "description": "Execute a Python code snippet on the server and return its output. Use print() to produce output.",                "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+### 4.4 All-tools — code prompt → expects run_python
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Calculate the factorial of 12 by running Python code." }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                                                "parameters": { "type": "object", "properties": { "city":  { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",                                  "parameters": { "type": "object", "properties": { "to":    { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } },
+    { "type": "function", "function": { "name": "web_search",     "description": "Search the web for real-time information",                                                                         "parameters": { "type": "object", "properties": { "query": { "type": "string" }, "max_results": { "type": "integer", "default": 3 } }, "required": ["query"] } } },
+    { "type": "function", "function": { "name": "run_python",     "description": "Execute a Python code snippet on the server and return its output. Use print() to produce output.",                "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+### 4.5 All-tools — no-tool-needed prompt → expects no tool call
+### Verifies the model doesn't hallucinate a tool call when not required.
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Who was the first president of the United States?" }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                                                "parameters": { "type": "object", "properties": { "city":  { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",                                  "parameters": { "type": "object", "properties": { "to":    { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } },
+    { "type": "function", "function": { "name": "web_search",     "description": "Search the web for real-time information",                                                                         "parameters": { "type": "object", "properties": { "query": { "type": "string" }, "max_results": { "type": "integer", "default": 3 } }, "required": ["query"] } } },
+    { "type": "function", "function": { "name": "run_python",     "description": "Execute a Python code snippet on the server and return its output. Use print() to produce output.",                "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 5: Parallel + Chained Tools
+### Verifies the multi-tool / multi-round behavior in llm_service.py.
+### Parallel = multiple tool calls in ONE round (asyncio.gather kicks in).
+### Chained  = each round needs the previous round's tool output.
+### ──────────────────────────────────────────────────────────────
+
+
+### 5.1 Parallel — weather in two cities (one round, two get_weather calls)
+### Strong models bundle these in one round; Llama-3.1-8B may serialize across two rounds.
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    { "role": "user", "content": "What is the current weather in both Delhi and Mumbai?" }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string" } },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 5.2 Parallel — weather in three cities
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    { "role": "user", "content": "Give me the weather in Delhi, Mumbai, and Chennai right now." }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string" } },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 5.3 Chained — weather then email summary (multi-round)
+### Round 1: get_weather → Round 2: generate_email (using weather result) → Round 3: final text.
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    { "role": "user", "content": "Check the weather in Ahmedabad and then email a one-line summary to team@company.com." }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                                                "parameters": { "type": "object", "properties": { "city": { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",                                  "parameters": { "type": "object", "properties": { "to":   { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } }
+  ]
+}
+
+### 5.4 Chained — search then summarize via Python
+### Round 1: web_search → Round 2: run_python (count/process results) → Round 3: final text.
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    { "role": "user", "content": "Search the web for 'Python 3.13 new features' and use Python to print the number of results returned." }
+  ],
+  "tools": [
+    { "type": "function", "function": { "name": "web_search", "description": "Search the web for real-time information", "parameters": { "type": "object", "properties": { "query": { "type": "string" }, "max_results": { "type": "integer", "default": 3 } }, "required": ["query"] } } },
+    { "type": "function", "function": { "name": "run_python", "description": "Execute a Python code snippet on the server and return its output.", "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+### 5.5 Multi-tool combined — weather + email + python (full pipeline, streaming)
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    { "role": "user", "content": "Get the weather in Jaipur, write a Python one-liner to convert that temperature from Celsius to Fahrenheit, then email the result to traveler@example.com." }
+  ],
+  "stream": true,
+  "tools": [
+    { "type": "function", "function": { "name": "get_weather",    "description": "Get current weather information for a given city",                                "parameters": { "type": "object", "properties": { "city":  { "type": "string" } }, "required": ["city"] } } },
+    { "type": "function", "function": { "name": "generate_email", "description": "Generate a formatted email with the given recipient, subject, and optional tone",  "parameters": { "type": "object", "properties": { "to":    { "type": "string" }, "subject": { "type": "string" }, "tone": { "type": "string", "default": "formal" } }, "required": ["to", "subject"] } } },
+    { "type": "function", "function": { "name": "run_python",     "description": "Execute a Python code snippet on the server and return its output.",              "parameters": { "type": "object", "properties": { "code":  { "type": "string" } }, "required": ["code"] } } }
+  ]
+}
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 6: tool_choice Variants
+### Verifies "auto" (default), "none" (forbid tools), and forced specific tool.
+### ──────────────────────────────────────────────────────────────
+
+
+### 6.1 tool_choice: "auto" — explicit default
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "What is the weather in Pune?" }
+  ],
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string" } },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 6.2 tool_choice: "none" — must NOT call any tool even if relevant
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "What is the weather in London?" }
+  ],
+  "tool_choice": "none",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string" } },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 6.3 tool_choice: forced specific tool — must call get_weather even off-topic
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Tell me about Jaipur." }
+  ],
+  "tool_choice": { "type": "function", "function": { "name": "get_weather" } },
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string" } },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+
+### ──────────────────────────────────────────────────────────────
+### SECTION 7: Edge Cases
+### ──────────────────────────────────────────────────────────────
+
+
+### 7.1 Unregistered tool — proxy should return raw tool_calls (BFCL pass-through)
+### `book_flight` is NOT in TOOL_MAP → llm_service.py:50 short-circuits and forwards
+### the model's raw tool_calls without local execution.
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    { "role": "user", "content": "Book a flight from Delhi to London for tomorrow." }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "book_flight",
+        "description": "Book a flight between two cities on a specific date",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string" },
+            "to":   { "type": "string" },
+            "date": { "type": "string" }
+          },
+          "required": ["from", "to", "date"]
+        }
+      }
+    }
+  ]
+}
+
+### 7.2 Default model — model field omitted, server falls back to DEFAULT_MODEL
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+
+{
+  "messages": [
+    { "role": "user", "content": "What is the weather in Bengaluru?" }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": { "type": "string" } },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### 7.3 Auth-required server (only meaningful if PROXY_API_KEY is set)
+POST http://localhost:8000/v1/chat/completions
+Content-Type: application/json
+# Authorization: Bearer your-proxy-api-key-here
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    { "role": "user", "content": "Ping." }
+  ]
+}

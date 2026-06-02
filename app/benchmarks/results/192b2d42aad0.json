@@ -1,0 +1,189 @@
+{
+  "run_id": "192b2d42aad0",
+  "timestamp": "2026-04-30T14:40:59.260930+00:00",
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "total_scenarios": 8,
+  "passed": 7,
+  "failed": 1,
+  "aggregate_scores": {
+    "tool_selection": 0.875,
+    "argument_accuracy": 0.875,
+    "no_false_positive": 1.0,
+    "overall": 0.9
+  },
+  "results": [
+    {
+      "scenario_id": "simple_weather",
+      "category": "simple_call",
+      "description": "Single tool call with one required argument",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 3707.66,
+      "called_tools": [
+        "get_weather"
+      ],
+      "called_args": {
+        "get_weather": {
+          "city": "Mumbai"
+        }
+      },
+      "expected_tools": [
+        "get_weather"
+      ],
+      "content": "The current weather in Mumbai is a thunderstorm with a temperature of 29.2°C, humidity of 79%, and wind speed of 9.6 km/h."
+    },
+    {
+      "scenario_id": "simple_email",
+      "category": "simple_call",
+      "description": "Single tool call with multiple required arguments",
+      "scores": {
+        "tool_selection": 0.0,
+        "argument_accuracy": 0.0,
+        "no_false_positive": 1.0,
+        "overall": 0.2
+      },
+      "latency_ms": 899.54,
+      "called_tools": [],
+      "called_args": {},
+      "expected_tools": [
+        "generate_email"
+      ],
+      "content": "There is no clear need to invoke an external function for this query, as the response can be provided in natural language. The email can be drafted directly without requiring any additional information or computations."
+    },
+    {
+      "scenario_id": "no_tool_math",
+      "category": "no_tool",
+      "description": "Simple question that should NOT trigger any tool call",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 1435.69,
+      "called_tools": [],
+      "called_args": {},
+      "expected_tools": [],
+      "content": "The answer to the question \"What is 2 + 2?\" is a simple arithmetic operation that can be easily performed without invoking an external function. The result of 2 + 2 is 4."
+    },
+    {
+      "scenario_id": "parallel_weather",
+      "category": "parallel_call",
+      "description": "Should trigger two parallel get_weather calls",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 5118.52,
+      "called_tools": [
+        "get_weather",
+        "get_weather"
+      ],
+      "called_args": {
+        "get_weather": {
+          "city": "Mumbai"
+        }
+      },
+      "expected_tools": [
+        "get_weather",
+        "get_weather"
+      ],
+      "content": "The weather in Delhi is mainly clear with a temperature of 32°C, humidity of 31%, wind speed of 11 km/h. The weather in Mumbai is a thunderstorm with a temperature of 29.2°C, humidity of 79%, wind speed of 9.6 km/h."
+    },
+    {
+      "scenario_id": "multi_turn_weather_email",
+      "category": "multi_turn",
+      "description": "Sequential multi-turn: weather first, then email with weather data",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 4131.58,
+      "called_tools": [
+        "get_weather",
+        "generate_email"
+      ],
+      "called_args": {
+        "get_weather": {
+          "city": "Surat"
+        },
+        "generate_email": {
+          "to": "team@company.com",
+          "subject": "Weather Report for Surat",
+          "tone": "formal"
+        }
+      },
+      "expected_tools": [
+        "get_weather",
+        "generate_email"
+      ],
+      "content": "The weather in Surat is a thunderstorm with a temperature of 29.1°C, humidity of 81%, and wind speed of 16.4 km/h. \n\nA formal email has been sent to team@company.com with a summary of the weather report."
+    },
+    {
+      "scenario_id": "no_tool_irrelevant",
+      "category": "no_tool",
+      "description": "Request for a tool that doesn't exist — should NOT hallucinate a tool call",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 599.74,
+      "called_tools": [],
+      "called_args": {},
+      "expected_tools": [],
+      "content": "I can't book a flight for you.  However, I can help you find a flight or provide information on how to book one."
+    },
+    {
+      "scenario_id": "ambiguous_prompt",
+      "category": "edge_case",
+      "description": "Ambiguous prompt with missing required args — should ask for clarification or decline",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 600.18,
+      "called_tools": [],
+      "called_args": {},
+      "expected_tools": [],
+      "content": "I'm happy to help! However, I don't have enough information to provide a clear update. Could you please provide more context or clarify what you would like to update?"
+    },
+    {
+      "scenario_id": "optional_param",
+      "category": "simple_call",
+      "description": "Should extract optional 'tone' parameter correctly",
+      "scores": {
+        "tool_selection": 1.0,
+        "argument_accuracy": 1.0,
+        "no_false_positive": 1.0,
+        "overall": 1.0
+      },
+      "latency_ms": 7194.97,
+      "called_tools": [
+        "generate_email"
+      ],
+      "called_args": {
+        "generate_email": {
+          "to": "alice@company.com",
+          "subject": "Lunch Plans for Tomorrow",
+          "tone": "casual"
+        }
+      },
+      "expected_tools": [
+        "generate_email"
+      ],
+      "content": "This is a casual email about \"Lunch Plans for Tomorrow\"."
+    }
+  ]
+}

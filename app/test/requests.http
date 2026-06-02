@@ -1,0 +1,600 @@
+### OpenRouter Proxy — Request Payloads (all scenarios)
+### Compatible with VS Code REST Client / IntelliJ HTTP Client
+### Base URL: http://localhost:8000
+### ============================================================
+
+
+### ──────────────────────────────────────────────────────────────
+### 1. Health Check
+### ──────────────────────────────────────────────────────────────
+
+GET http://localhost:8000/
+Content-Type: application/json
+
+### ──────────────────────────────────────────────────────────────
+### 2. List Available Tools
+### ──────────────────────────────────────────────────────────────
+
+GET http://localhost:8000/tools
+Content-Type: application/json
+
+### ──────────────────────────────────────────────────────────────
+### 3. Basic Chat — Non-Streaming
+### Simple question, no tools, returns full JSON response
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the capital of France?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 20. Tiny Benchmark — List Scenarios
+### No external benchmark package required.
+### ──────────────────────────────────────────────────────────────
+
+GET http://localhost:8000/benchmarks/tiny/scenarios
+Content-Type: application/json
+
+### ──────────────────────────────────────────────────────────────
+### 21. Tiny Benchmark — Run All Scenarios
+### Returns total, passed, failed, score, and per-case details.
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/benchmarks/tiny/run
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "temperature": 0,
+  "max_tokens": 300
+}
+
+### ──────────────────────────────────────────────────────────────
+### 22. Tiny Benchmark — Run Selected Scenarios
+### Available IDs: basic_capital, weather_tool, email_tool
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/benchmarks/tiny/run
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "scenario_ids": ["weather_tool", "email_tool"],
+  "temperature": 0,
+  "max_tokens": 300
+}
+
+### ──────────────────────────────────────────────────────────────
+### 4. Basic Chat — Streaming (SSE)
+### Returns token-by-token chunks for spinner/loading support
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Count from 1 to 5."
+    }
+  ],
+  "stream": true
+}
+
+### ──────────────────────────────────────────────────────────────
+### 5. Chat with System Prompt — Non-Streaming
+### Custom system prompt to control behavior
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a pirate. Respond to everything in pirate speak."
+    },
+    {
+      "role": "user",
+      "content": "Tell me about the weather today."
+    }
+  ],
+  "temperature": 0.9,
+  "max_tokens": 200
+}
+
+### ──────────────────────────────────────────────────────────────
+### 6. Chat with System Prompt — Streaming
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a concise technical assistant. Keep answers under 3 sentences."
+    },
+    {
+      "role": "user",
+      "content": "Explain what a REST API is."
+    }
+  ],
+  "stream": true,
+  "temperature": 0.3,
+  "max_tokens": 150
+}
+
+### ──────────────────────────────────────────────────────────────
+### 7. Multi-Turn Conversation — Non-Streaming
+### Passing conversation history
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "My name is Jaydip."
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Jaydip! How can I help you today?"
+    },
+    {
+      "role": "user",
+      "content": "What is my name?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 8. Tool Calling — Weather (Non-Streaming)
+### LLM decides to call get_weather, proxy executes it
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Mumbai right now?"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 9. Tool Calling — Weather (Streaming)
+### Same as above but with token-by-token streaming response
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Delhi?"
+    }
+  ],
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 10. Tool Calling — Email (Non-Streaming)
+### LLM decides to call generate_email
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a formal email to john@example.com about the project deadline extension."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 11. Multiple Tools — LLM Chooses Which to Use
+### Both tools provided, LLM picks the right one
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in Surat?"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 12. Forced Tool Choice — tool_choice
+### Force the LLM to use a specific tool
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Tell me about Jaipur"
+    }
+  ],
+  "tool_choice": {
+    "type": "function",
+    "function": {
+      "name": "get_weather"
+    }
+  },
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 13. No Tool Choice — tool_choice: "none"
+### Prevent the LLM from using any tools even if provided
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the weather in London?"
+    }
+  ],
+  "tool_choice": "none",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 14. Custom Model Parameters
+### Temperature, max_tokens, top_p, stop, penalties
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a creative one-liner about programming."
+    }
+  ],
+  "temperature": 1.2,
+  "max_tokens": 100,
+  "top_p": 0.95,
+  "frequency_penalty": 0.5,
+  "presence_penalty": 0.3
+}
+
+### ──────────────────────────────────────────────────────────────
+### 15. Stop Sequences
+### LLM stops generating at the specified sequence
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "List the first 10 prime numbers, one per line."
+    }
+  ],
+  "stop": ["7"],
+  "max_tokens": 200
+}
+
+### ──────────────────────────────────────────────────────────────
+### 16. Default Model — No model specified
+### Uses DEFAULT_MODEL from .env (meta-llama/llama-3.1-8b-instruct)
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello! What model are you?"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 17. Different Model — GPT-4o Mini
+### Using a different OpenRouter model
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Say hello in one sentence."
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 18. Minimal Payload — Bare minimum required fields
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi"
+    }
+  ]
+}
+
+### ──────────────────────────────────────────────────────────────
+### 19. Full Payload — All Parameters Combined
+### Everything together: system prompt, tools, streaming, params
+### ──────────────────────────────────────────────────────────────
+
+POST http://localhost:8000/v1
+Content-Type: application/json
+
+{
+  "model": "meta-llama/llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that uses tools when appropriate. Be concise."
+    },
+    {
+      "role": "user",
+      "content": "What is the weather in Ahmedabad and also draft me an email to boss@company.com about taking a day off tomorrow."
+    }
+  ],
+  "stream": true,
+  "temperature": 0.7,
+  "max_tokens": 500,
+  "top_p": 0.9,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather information for a given city",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "The city name to get weather for"
+            }
+          },
+          "required": ["city"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_email",
+        "description": "Generate a formatted email with the given recipient, subject, and optional tone",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "Email recipient address"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject line"
+            },
+            "tone": {
+              "type": "string",
+              "description": "Tone of the email (e.g. formal, casual)",
+              "default": "formal"
+            }
+          },
+          "required": ["to", "subject"]
+        }
+      }
+    }
+  ]
+}

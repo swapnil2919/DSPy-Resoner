@@ -1,0 +1,108 @@
+{
+  "scenarios": [
+    {
+      "id": "simple_weather",
+      "category": "simple_call",
+      "prompt": "What is the weather in Mumbai right now?",
+      "expected_tools": ["get_weather"],
+      "expected_args": {"get_weather": {"city": "Mumbai"}},
+      "description": "Single tool call with one required argument"
+    },
+    {
+      "id": "simple_email",
+      "category": "simple_call",
+      "prompt": "Draft an email to boss@company.com about the Q4 review meeting",
+      "expected_tools": ["generate_email"],
+      "expected_args": {"generate_email": {"to": "boss@company.com", "subject": "Q4 review"}},
+      "description": "Single tool call with multiple required arguments"
+    },
+    {
+      "id": "no_tool_math",
+      "category": "no_tool",
+      "prompt": "What is 2 + 2?",
+      "expected_tools": [],
+      "expected_args": {},
+      "description": "Simple question that should NOT trigger any tool call"
+    },
+    {
+      "id": "parallel_weather",
+      "category": "parallel_call",
+      "prompt": "What is the weather in both Delhi and Mumbai?",
+      "expected_tools": ["get_weather", "get_weather"],
+      "expected_args": {},
+      "description": "Should trigger two parallel get_weather calls"
+    },
+    {
+      "id": "multi_turn_weather_email",
+      "category": "multi_turn",
+      "prompt": "Check the weather in Surat, then email a summary of the weather report to team@company.com",
+      "expected_tools": ["get_weather", "generate_email"],
+      "expected_args": {},
+      "description": "Sequential multi-turn: weather first, then email with weather data"
+    },
+    {
+      "id": "no_tool_irrelevant",
+      "category": "no_tool",
+      "prompt": "Book a flight from Delhi to London for next Friday",
+      "expected_tools": [],
+      "expected_args": {},
+      "description": "Request for a tool that doesn't exist — should NOT hallucinate a tool call"
+    },
+    {
+      "id": "ambiguous_prompt",
+      "category": "edge_case",
+      "prompt": "Send an update",
+      "expected_tools": [],
+      "expected_args": {},
+      "description": "Ambiguous prompt with missing required args — should ask for clarification or decline"
+    },
+    {
+      "id": "optional_param",
+      "category": "simple_call",
+      "prompt": "Write a casual email to alice@company.com about lunch plans tomorrow",
+      "expected_tools": ["generate_email"],
+      "expected_args": {"generate_email": {"to": "alice@company.com", "subject": "lunch", "tone": "casual"}},
+      "description": "Should extract optional 'tone' parameter correctly"
+    },
+    {
+      "id": "weather_with_units_chatter",
+      "category": "simple_call",
+      "prompt": "I'm packing for a trip — what's the weather in Bengaluru today?",
+      "expected_tools": ["get_weather"],
+      "expected_args": {"get_weather": {"city": "Bengaluru"}},
+      "description": "Conversational framing should still extract city and call get_weather"
+    },
+    {
+      "id": "no_tool_factual_history",
+      "category": "no_tool",
+      "prompt": "Who was the first president of the United States?",
+      "expected_tools": [],
+      "expected_args": [],
+      "description": "Pure factual recall — should answer directly without any tool call"
+    },
+    {
+      "id": "email_formal_with_subject",
+      "category": "simple_call",
+      "prompt": "Send a formal email to hr@company.com about my resignation effective next month",
+      "expected_tools": ["generate_email"],
+      "expected_args": {"generate_email": {"to": "hr@company.com", "subject": "Resignation", "tone": "formal"}},
+      "description": "Should pick up formal tone and a domain-specific subject line"
+    },
+    {
+      "id": "parallel_weather_three_cities",
+      "category": "parallel_call",
+      "prompt": "Give me the weather in Delhi, Mumbai, and Chennai right now",
+      "expected_tools": ["get_weather", "get_weather", "get_weather"],
+      "expected_args": {},
+      "description": "Should fan out three parallel get_weather calls, one per city"
+    },
+    {
+      "id": "no_tool_creative_writing",
+      "category": "no_tool",
+      "prompt": "Write me a two-sentence haiku about debugging code",
+      "expected_tools": [],
+      "expected_args": {},
+      "description": "Creative-writing prompt with no external data — model answers directly, no tool call"
+    }
+  ]
+}
